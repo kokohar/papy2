@@ -1,0 +1,395 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vmstorageType": {
+      "type": "string",
+      "defaultValue": "Premium_LRS",
+      "allowedValues": [
+        "Premium_LRS"
+      ]
+    },
+    "vmstorage3Type": {
+      "type": "string",
+      "defaultValue": "Premium_LRS",
+      "allowedValues": [
+        "Premium_LRS"
+      ]
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "demouser",
+      "metadata": {
+        "description": "The name of the administrator account of the new VM and domain"
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "defaultValue": "demo@pass123",
+      "metadata": {
+        "description": "The password for the administrator account of the new VM and domain"
+      }
+    },
+    "domainName": {
+      "type": "string",
+      "defaultValue": "nathalie.us",
+      "metadata": {
+        "description": "The FQDN of the Active Directory Domain to be created"
+      }
+    },
+    "DomainJoinscriptUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "script to execute"
+      }
+    },
+    "DomainJoinscriptUrl1": {
+      "type": "string",
+      "metadata": {
+        "description": "script to execute"
+      }
+    },
+    "DomainJoinedVMName": {
+      "type": "string",
+      "defaultValue": "MSVM1",
+      "minLength": 1
+    },
+    "DomainJoinedVM1Name": {
+      "type": "string",
+      "defaultValue": "MSVM2",
+      "minLength": 1
+    },
+    "DomainJoinedVMWindowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2016-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "2016-Datacenter"
+      ]
+    },
+    "DomainJoinedVM1WindowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2016-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "2016-Datacenter"
+      ]
+    }
+  },
+  "variables": {
+    "VNETNAME": "OPSTrainingVNET",
+    "DNSIP": "10.0.1.4",
+    "OPSTrainingVNETPrefix": "10.0.0.0/16",
+    "OPSTrainingVNETSubnet1Name": "Apps",
+    "OPSTrainingVNETSubnet1Prefix": "10.0.0.0/24",
+    "OPSTrainingVNETSubnet2Name": "Identity",
+    "OPSTrainingVNETSubnet2Prefix": "10.0.1.0/24",
+    "vmstorageName": "[concat('msstorage', uniqueString(resourceGroup().id))]",
+    "vmstorage3Name": "[concat('msstorage3', uniqueString(resourceGroup().id))]",
+    "scriptFolder": ".",
+    "DomainJoinscriptFileName": "domain-join.ps1",
+    "DomainJoinscriptParameters": "[concat(' -domain ', parameters('domainName'), ' -user ', parameters('adminUsername'), ' -password ', parameters('adminPassword'))]",
+    "scriptFolder1": ".",
+    "DomainJoinscriptFileName1": "domain-join2.ps1",
+    "DomainJoinscriptParameters1": "[concat(' -domain ', parameters('domainName'), ' -user ', parameters('adminUsername'), ' -password ', parameters('adminPassword'))]",
+    "MABSServerVM1ImagePublisher": "MicrosoftWindowsServer",
+    "MABSServerVM1ImageOffer": "WindowsServer",
+    "MABSServerVM1OSDiskName": "MABSServerVM1OSDisk",
+    "MABSServerVM1VmSize": "Standard_D2S_v3",
+    "MABSServerVM1VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'OPSTrainingVNET')]",
+    "MABSServerVM2ImagePublisher": "MicrosoftWindowsServer",
+    "MABSServerVM2ImageOffer": "WindowsServer",
+    "MABSServerVM2OSDiskName": "MABSServerVM2OSDisk",
+    "MABSServerVM2VmSize": "Standard_D2S_v3",
+    "MABSServerVM2VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'OPSTrainingVNET')]",
+    "MABSServerVM1SubnetRef": "[concat(variables('MABSServerVM1VnetID'), '/subnets/', variables('OPSTrainingVNETSubnet1Name'))]",
+    "MABSServerVM2SubnetRef": "[concat(variables('MABSServerVM1VnetID'), '/subnets/', variables('OPSTrainingVNETSubnet1Name'))]",
+    "MABSServerVM1StorageAccountContainerName": "vhds",
+    "MABSServerVM2StorageAccountContainerName": "vhds",
+    "MABSServerVM1NicName": "[concat(parameters('DomainJoinedVMName'), 'NetworkInterface')]",
+    "MABSServerVM2NicName": "[concat(parameters('DomainJoinedVM1Name'), 'NetworkInterface')]",
+    "MABSDISK1": "[concat('http://',variables('vmstorageName'),'.blob.core.windows.net/','vhds','/','dataDisk1.vhd')]",
+    "MABSDISK2": "[concat('http://',variables('vmstorage3Name'),'.blob.core.windows.net/','vhds','/','dataDisk1.vhd')]",
+    "MABSServerVm1-IPName": "MABSServerVm1-IP",
+    "MABSServerVm2-IPName": "MABSServerVm2-IP"
+  },
+  "resources": [
+    {
+      "name": "[variables('vmstorageName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('vmstorageType')]"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "vmstorage"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "[variables('vmstorage3Name')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('vmstorage3Type')]"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "vmstorage3"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "[variables('MABSServerVM1NicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('MABSServerVm1-IPName'))]"
+      ],
+      "tags": {
+        "displayName": "MABSServerVM1Nic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('MABSServerVM1SubnetRef')]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('MABSServerVm1-IPName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('MABSServerVM2NicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('MABSServerVm2-IPName'))]"
+      ],
+      "tags": {
+        "displayName": "MABSServerVM2Nic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig2",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('MABSServerVM2SubnetRef')]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('MABSServerVm2-IPName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[parameters('DomainJoinedVMName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('vmstorageName'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('MABSServerVM1NicName'))]"
+      ],
+      "tags": {
+        "displayName": "MABSServerVM1"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('MABSServerVM1VmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('DomainJoinedVMName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('MABSServerVM1ImagePublisher')]",
+            "offer": "[variables('MABSServerVM1ImageOffer')]",
+            "sku": "[parameters('DomainJoinedVMWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "MABSServerVM1OSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('vmstorageName')), '2016-01-01').primaryEndpoints.blob, variables('MABSServerVM1StorageAccountContainerName'), '/', variables('MABSServerVM1OSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          },
+          "dataDisks": [
+            {
+              "name": "datadisk1",
+              "diskSizeGB": "1023",
+              "lun": 0,
+              "vhd": { "uri": "[variables('MABSDISK1')]" },
+              "createOption": "Empty"
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('MABSServerVM1NicName'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "DomainJoin",
+          "type": "extensions",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2016-03-30",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', parameters('DomainJoinedVMName'))]"
+          ],
+          "tags": {
+            "displayName": "DomainJoin"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.4",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "[concat(parameters('DomainJoinscriptUrl'))]"
+              ],
+              "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File ', variables('scriptFolder'), '/', variables('DomainJoinscriptFileName'), ' ', variables('DomainJoinscriptParameters'))]"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "[parameters('DomainJoinedVM1Name')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('vmstorage3Name'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('MABSServerVM2NicName'))]"
+      ],
+      "tags": {
+        "displayName": "MABSServerVM2"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('MABSServerVM2VmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('DomainJoinedVM1Name')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('MABSServerVM2ImagePublisher')]",
+            "offer": "[variables('MABSServerVM2ImageOffer')]",
+            "sku": "[parameters('DomainJoinedVM1WindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "MABSServerVM2OSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('vmstorage3Name')), '2016-01-01').primaryEndpoints.blob, variables('MABSServerVM2StorageAccountContainerName'), '/', variables('MABSServerVM2OSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          },
+          "dataDisks": [
+            {
+              "name": "datadisk2",
+              "diskSizeGB": "1023",
+              "lun": 0,
+              "vhd": { "uri": "[variables('MABSDISK2')]" },
+              "createOption": "Empty"
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('MABSServerVM2NicName'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "DomainJoin",
+          "type": "extensions",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2016-03-30",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', parameters('DomainJoinedVM1Name'))]"
+          ],
+          "tags": {
+            "displayName": "DomainJoin"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.4",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "[concat(parameters('DomainJoinscriptUrl1'))]"
+              ],
+              "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File ', variables('scriptFolder1'), '/', variables('DomainJoinscriptFileName1'), ' ', variables('DomainJoinscriptParameters1'))]"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "[variables('MABSServerVm1-IPName')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "MABSServerVm1-IP"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic"
+      }
+    },
+    {
+      "name": "[variables('MABSServerVm2-IPName')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "MABSServerVm2-IP"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic"
+      }
+    }
+  ],
+    "outputs": {}
+  }

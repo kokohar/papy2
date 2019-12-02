@@ -1,0 +1,383 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vmstorageType": {
+      "type": "string",
+      "defaultValue": "Premium_LRS",
+      "allowedValues": [
+        "Premium_LRS"
+      ]
+    },
+    "vmstorage1Type": {
+      "type": "string",
+      "defaultValue": "Premium_LRS",
+      "allowedValues": [
+        "Premium_LRS"
+      ]
+    },
+    "ADVMName": {
+      "type": "string",
+      "defaultValue": "OPSADSRV",
+      "minLength": 1
+    },
+    "ADVM1Name": {
+      "type": "string",
+      "defaultValue": "OPSADSRV1",
+      "minLength": 1
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "demouser",
+      "metadata": {
+        "description": "The name of the administrator account of the new VM and domain"
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "defaultValue": "demo@pass123",
+      "metadata": {
+        "description": "The password for the administrator account of the new VM and domain"
+      }
+    },
+    "domainName": {
+      "type": "string",
+      "defaultValue": "nathalie.us",
+      "metadata": {
+        "description": "The FQDN of the Active Directory Domain to be created"
+      }
+    },
+    "ADInstallscriptUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Script to execute to install Active Directory"
+      }
+    },
+    "ADInstallscriptUrl1": {
+      "type": "string",
+      "metadata": {
+        "description": "Script to execute to install Active Directory"
+      }
+    },
+    "ADVMWindowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2016-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "2016-Datacenter"
+      ]
+    },
+    "ADVMWindowsOSVersion1": {
+      "type": "string",
+      "defaultValue": "2016-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "2016-Datacenter"
+      ]
+    }
+  },
+  "variables": {
+    "VNETNAME": "OPSTrainingVNET",
+    "DNSIP": "10.0.1.4",
+    "OPSTrainingVNETPrefix": "10.0.0.0/16",
+    "OPSTrainingVNETSubnet1Name": "Apps",
+    "OPSTrainingVNETSubnet1Prefix": "10.0.0.0/24",
+    "OPSTrainingVNETSubnet2Name": "Identity",
+    "OPSTrainingVNETSubnet2Prefix": "10.0.1.0/24",
+    "vmstorageName": "[concat('adstorage', uniqueString(resourceGroup().id))]",
+    "vmstorage1Name": "[concat('adstorage1', uniqueString(resourceGroup().id))]",
+    "ADVMImagePublisher": "MicrosoftWindowsServer",
+    "ADVMImageOffer": "WindowsServer",
+    "ADVMOSDiskName": "ADVMOSDisk",
+    "ADVMVmSize": "Standard_D2S_v3",
+    "ADVM1VmSize": "Standard_D2S_v3",
+    "ADVMVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'OPSTrainingVNET')]",
+    "ADVMSubnetRef": "[concat(variables('ADVMVnetID'), '/subnets/', variables('OPSTrainingVNETSubnet2Name'))]",
+    "ADVMImagePublisher1": "MicrosoftWindowsServer",
+    "ADVMImageOffer1": "WindowsServer",
+    "ADVMOSDiskName1": "ADVMOSDisk",
+    "ADVMVmSize1": "Standard_D2S_v3",
+    "ADVM1VmSize1": "Standard_D2S_v3",
+    "ADVMVnetID1": "[resourceId('Microsoft.Network/virtualNetworks', 'OPSTrainingVNET')]",
+    "ADVMSubnetRef1": "[concat(variables('ADVMVnetID'), '/subnets/', variables('OPSTrainingVNETSubnet2Name'))]",
+    "ADVMStorageAccountContainerName": "vhds",
+    "ADVMStorageAccountContainerName1": "vhds",
+    "ADVMNicName": "[concat(parameters('ADVMName'), 'NetworkInterface')]",
+    "ADVM1NicName": "[concat(parameters('ADVM1Name'), 'NetworkInterface')]",
+    "InstallADScriptFolder": "CustomScripts",
+    "InstallADScriptFileName": "InstallAD.ps1",
+    "scriptFolder": ".",
+    "VM1scriptFileName": "deploy-ad.ps1",
+    "VM1scriptParameters": "[concat(' -domain ', parameters('domainName'), ' -password ', parameters('adminPassword'))]",
+    "DomainJoinscriptFileName": "domain-join.ps1",
+    "DomainJoinscriptParameters": "[concat(' -domain ', parameters('domainName'), ' -user ', parameters('adminUsername'), ' -password ', parameters('adminPassword'))]",
+    "scriptFolder1": ".",
+    "VM1scriptFileName1": "deploy-ad1.ps1",
+    "VM1scriptParameters1": "[concat(' -domain ', parameters('domainName'), ' -password ', parameters('adminPassword'))]",
+    "DomainJoinscriptFileName1": "domain-join1.ps1",
+    "DomainJoinscriptParameters1": "[concat(' -domain ', parameters('domainName'), ' -user ', parameters('adminUsername'), ' -password ', parameters('adminPassword'))]",
+    "advmipName": "advmip",
+    "advm1ipName": "advm1ip"
+  },
+  "resources": [
+    {
+      "name": "[variables('vmstorageName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('vmstorageType')]"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "vmstorage"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "[variables('vmstorage1Name')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('vmstorage1Type')]"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "vmstorage1"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "[variables('ADVMNicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('advmipName'))]"
+      ],
+      "tags": {
+        "displayName": "ADVMNic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('ADVMSubnetRef')]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('advmipName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('ADVM1NicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('advm1ipName'))]"
+      ],
+      "tags": {
+        "displayName": "ADVM1Nic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig2",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('ADVMSubnetRef1')]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('advm1ipName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[parameters('ADVMName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('vmstorageName'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('ADVMNicName'))]"
+      ],
+      "tags": {
+        "displayName": "ADVM"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('ADVMVmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('ADVMName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('ADVMImagePublisher')]",
+            "offer": "[variables('ADVMImageOffer')]",
+            "sku": "[parameters('ADVMWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "ADVMOSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('vmstorageName')), '2016-01-01').primaryEndpoints.blob, variables('ADVMStorageAccountContainerName'), '/', variables('ADVMOSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('ADVMNicName'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "InstallAD",
+          "type": "extensions",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2016-03-30",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', parameters('ADVMName'))]"
+          ],
+          "tags": {
+            "displayName": "InstallAD"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.4",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "[concat(parameters('ADInstallscriptUrl'))]"
+              ],
+              "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File ', variables('scriptFolder'), '/', variables('VM1scriptFileName'), ' ', variables('VM1scriptParameters'))]"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "[parameters('ADVM1Name')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('vmstorage1Name'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('ADVM1NicName'))]"
+      ],
+      "tags": {
+        "displayName": "ADVM1"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('ADVM1VmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('ADVM1Name')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('ADVMImagePublisher1')]",
+            "offer": "[variables('ADVMImageOffer1')]",
+            "sku": "[parameters('ADVMWindowsOSVersion1')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "ADVM1OSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('vmstorage1Name')), '2016-01-01').primaryEndpoints.blob, variables('ADVMStorageAccountContainerName1'), '/', variables('ADVMOSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('ADVM1NicName'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "InstallAD",
+          "type": "extensions",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2016-03-30",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', parameters('ADVM1Name'))]"
+          ],
+          "tags": {
+            "displayName": "InstallAD"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.4",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "[concat(parameters('ADInstallscriptUrl1'))]"
+              ],
+              "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File ', variables('scriptFolder1'), '/', variables('VM1scriptFileName1'), ' ', variables('VM1scriptParameters1'))]"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "[variables('advmipName')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "advmip"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic"
+      }
+    },
+    {
+      "name": "[variables('advm1ipName')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "advm1ip"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic"
+      }
+    }
+  ],
+  "outputs": {}
+}
